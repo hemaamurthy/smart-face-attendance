@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home - Smart Face Attendance System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Custom styles to enhance Tailwind, keep font and background image */
+        body {
+            font-family: 'Inter', sans-serif; /* Using Inter font as per instructions */
+            background-image: url('https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1920&q=80'); /* Adjusted for potential better quality */
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            /* Using a strong overlay to make text readable */
+            position: relative;
+        }
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to right, rgba(15, 32, 39, 0.8), rgba(32, 58, 67, 0.8), rgba(44, 83, 100, 0.8));
+            backdrop-filter: blur(4px);
+            z-index: -1; /* Place behind content */
+        }
+        /* Style for the custom message box (consistent across pages) */
+        #messageBox {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #messageBox.show {
+            opacity: 1;
+        }
+        .icon-success { color: #10B981; } /* Tailwind green-500 */
+        .icon-error { color: #EF4444; }   /* Tailwind red-500 */
+        .icon-info { color: #3B82F6; }    /* Tailwind blue-500 */
+        .icon-warning { color: #F59E0B; } /* Tailwind amber-500 */
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen text-white p-4">
+    <h1 class="text-4xl sm:text-5xl md:text-6xl font-bold mb-8 text-shadow-lg leading-tight">
+        <i class="fas fa-smile text-teal-400 mr-4"></i>Welcome to Smart Face Attendance System
+    </h1>
+    <div class="btn-container flex flex-col sm:flex-row gap-4 sm:gap-6 md:gap-8 mt-8 w-full max-w-2xl justify-center">
+        {% if current_user.is_authenticated %}
+            {% if current_user.is_admin() %}
+                <a class="btn flex-1 bg-teal-500 hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-opacity-75 
+                          px-6 py-4 rounded-xl shadow-lg transition-all duration-300 ease-in-out 
+                          flex items-center justify-center text-lg sm:text-xl font-semibold transform hover:scale-105" 
+                   href="{{ url_for('register') }}">
+                    <i class="fas fa-user-plus mr-3"></i> Register Student
+                </a>
+                <a class="btn flex-1 bg-indigo-500 hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-75
+                          px-6 py-4 rounded-xl shadow-lg transition-all duration-300 ease-in-out 
+                          flex items-center justify-center text-lg sm:text-xl font-semibold transform hover:scale-105" 
+                   href="{{ url_for('admin_dashboard') }}">
+                    <i class="fas fa-chart-line mr-3"></i> Admin Dashboard
+                </a>
+            {% else %} {# current_user is a student #}
+                <a class="btn flex-1 bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75
+                          px-6 py-4 rounded-xl shadow-lg transition-all duration-300 ease-in-out 
+                          flex items-center justify-center text-lg sm:text-xl font-semibold transform hover:scale-105" 
+                   href="{{ url_for('mark_attendance') }}">
+                    <i class="fas fa-camera mr-3"></i> Mark Attendance
+                </a>
+                <a class="btn flex-1 bg-indigo-500 hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-75
+                          px-6 py-4 rounded-xl shadow-lg transition-all duration-300 ease-in-out 
+                          flex items-center justify-center text-lg sm:text-xl font-semibold transform hover:scale-105" 
+                   href="{{ url_for('my_attendance') }}">
+                    <i class="fas fa-user-circle mr-3"></i> My Attendance
+                </a>
+            {% endif %}
+            <a class="btn flex-1 bg-red-500 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75
+                      px-6 py-4 rounded-xl shadow-lg transition-all duration-300 ease-in-out 
+                      flex items-center justify-center text-lg sm:text-xl font-semibold transform hover:scale-105" 
+               href="{{ url_for('logout') }}">
+                <i class="fas fa-sign-out-alt mr-3"></i> Logout ({{ current_user.username }})
+            </a>
+        {% else %} {# Not authenticated, will be redirected to login by app.py #}
+            {# This section might not be strictly necessary as app.py redirects unauthenticated users to /login #}
+            {# However, keeping it for clarity if direct access to /home without login_required is ever allowed #}
+            <a class="btn flex-1 bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75
+                      px-6 py-4 rounded-xl shadow-lg transition-all duration-300 ease-in-out 
+                      flex items-center justify-center text-lg sm:text-xl font-semibold transform hover:scale-105" 
+               href="{{ url_for('login') }}">
+                <i class="fas fa-sign-in-alt mr-3"></i> Login
+            </a>
+            <a class="btn flex-1 bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75
+                      px-6 py-4 rounded-xl shadow-lg transition-all duration-300 ease-in-out 
+                      flex items-center justify-center text-lg sm:text-xl font-semibold transform hover:scale-105" 
+               href="{{ url_for('register') }}">
+                <i class="fas fa-user-plus mr-3"></i> Register
+            </a>
+        {% endif %}
+    </div>
+
+    <script>
+        const messageBox = document.getElementById("messageBox");
+
+        // Function to show custom messages (consistent across pages)
+        function showMessage(message, type = 'info', duration = 3000) {
+            let iconClass = '';
+            if (type === 'success') {
+                iconClass = 'icon-success fas fa-check-circle';
+            } else if (type === 'error') {
+                iconClass = 'icon-error fas fa-times-circle';
+            } else if (type === 'warning') {
+                iconClass = 'icon-warning fas fa-exclamation-triangle';
+            } else {
+                iconClass = 'icon-info fas fa-info-circle';
+            }
+            
+            messageBox.innerHTML = `<i class="${iconClass}"></i><span>${message}</span>`;
+            messageBox.className = 'show'; // Add 'show' class to fade in
+
+            setTimeout(() => {
+                messageBox.className = ''; // Remove 'show' class to fade out
+            }, duration);
+        }
+
+        // Handle Flask flashed messages (consistent across pages)
+        document.addEventListener('DOMContentLoaded', () => {
+            const flashMessages = document.querySelectorAll('.flash-msg');
+            if (flashMessages.length > 0) {
+                flashMessages.forEach(msg => {
+                    let type = 'info';
+                    if (msg.classList.contains('bg-red-600')) {
+                        type = 'error';
+                    } else if (msg.classList.contains('bg-green-600')) {
+                        type = 'success';
+                    } else if (msg.classList.contains('bg-blue-600')) {
+                        type = 'info';
+                    } else if (msg.classList.contains('bg-amber-600')) { // Assuming orange/amber for warning
+                        type = 'warning';
+                    }
+                    showMessage(msg.innerText, type, 5000); // Display flash messages for longer
+                    msg.style.display = 'none'; // Hide the original flash message div
+                });
+            }
+        });
+    </script>
+</body>
+</html>

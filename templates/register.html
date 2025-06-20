@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Register - Smart Face Attendance</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <style>
+        /* Custom styles to enhance Tailwind, keep font and background image */
+        body {
+            font-family: 'Inter', sans-serif; /* Using Inter font as per instructions */
+            background-image: url('https://images.unsplash.com/photo-1524492412937-4961a7f3e1b1?auto=format&fit=crop&w=1920&q=80'); /* Adjusted for potential better quality */
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            position: relative;
+        }
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7); /* Darker overlay for content readability */
+            backdrop-filter: blur(4px);
+            z-index: -1; /* Place behind content */
+        }
+        /* Custom text shadow for headings */
+        .text-shadow-lg {
+            text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.7);
+        }
+        /* Style for the custom message box (consistent with other pages) */
+        #messageBox {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #messageBox.show {
+            opacity: 1;
+        }
+        .icon-success { color: #10B981; } /* Tailwind green-500 */
+        .icon-error { color: #EF4444; }   /* Tailwind red-500 */
+        .icon-info { color: #3B82F6; }    /* Tailwind blue-500 */
+        .icon-warning { color: #F59E0B; } /* Tailwind amber-500 */
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen text-white p-4">
+    <div class="register-box bg-gray-800 bg-opacity-90 p-8 rounded-xl shadow-2xl max-w-xl w-full text-center relative
+                flex flex-col items-center">
+        <h2 class="text-3xl font-bold mb-6 text-shadow-lg text-teal-400">
+            <i class="fas fa-user-plus"></i> Register New Student
+        </h2>
+
+        <!-- Custom message box for Flask flashes and JS alerts -->
+        <div id="messageBox"></div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages w-full mb-4">
+                {% for category, message in messages %}
+                    <p class="flash-msg text-sm p-2 rounded-lg mb-2 
+                       {% if category == 'error' %}bg-red-600{% elif category == 'success' %}bg-green-600{% elif category == 'info' %}bg-blue-600{% else %}bg-gray-600{% endif %}">
+                        {{ message }}
+                    </p>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% endwith %}
+
+        <form id="registerForm" method="POST" class="w-full">
+            <input type="text" name="name" placeholder="Full Name" required
+                   class="w-full p-3 mb-4 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+            <input type="text" name="roll_number" placeholder="Roll Number (e.g., CS001 - will be your username)" required
+                   class="w-full p-3 mb-4 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+            <input type="text" name="section" placeholder="Section (e.g., A, B, CS-1)" required
+                   class="w-full p-3 mb-4 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+            <input type="date" name="date_of_birth" required
+                   class="w-full p-3 mb-2 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+            <p class="text-xs text-gray-400 text-left mb-4">
+                <i class="fas fa-key mr-1"></i> Your Date of Birth (YYYY-MM-DD) will be your password.
+            </p>
+            
+            <p class="text-sm text-gray-300 mb-4">
+                <i class="fas fa-info-circle mr-2"></i> When capturing your face:
+            </p>
+            <ul class="text-left text-sm text-gray-400 list-disc list-inside mb-4 mx-auto max-w-sm">
+                <li>Remove spectacles/sunglasses.</li>
+                <li>Be in a well-lit area.</li>
+                <li>Ensure your face is clearly visible.</li>
+                <li>Point your eyes directly at the camera.</li>
+                <li>Maintain a neutral expression.</li>
+            </ul>
+
+            <video id="videoElement" autoplay
+                   class="w-full max-w-md h-auto rounded-lg shadow-md border-2 border-gray-700 mx-auto block mb-4"></video>
+            <canvas id="canvas" style="display: none;"></canvas>
+            <input type="hidden" name="captured_image" id="capturedImage">
+            
+            <div class="flex flex-col sm:flex-row gap-4 mb-4 justify-center">
+                <button type="button" class="btn bg-blue-600 hover:bg-blue-700 focus:ring-blue-500 
+                                           px-6 py-3 rounded-lg shadow-md transition-all duration-200 
+                                           flex items-center justify-center text-lg font-semibold" 
+                        onclick="captureImage()">
+                    <i class="fas fa-camera mr-2"></i> Capture Face
+                </button>
+                <button type="submit" class="btn bg-teal-600 hover:bg-teal-700 focus:ring-teal-500 
+                                          px-6 py-3 rounded-lg shadow-md transition-all duration-200 
+                                          flex items-center justify-center text-lg font-semibold">
+                    <i class="fas fa-paper-plane mr-2"></i> Register Student
+                </button>
+            </div>
+            <img id="preview" 
+                 class="w-full max-w-md h-auto rounded-lg shadow-md border-2 border-gray-700 mx-auto block mt-4 hidden" />
+        </form>
+        <p class="mt-4 text-sm text-gray-300">
+            Already registered? <a href="{{ url_for('login') }}" class="text-blue-400 hover:underline font-semibold">Login here</a>.
+        </p>
+    </div>
+
+    <script>
+        const video = document.getElementById("videoElement");
+        const canvas = document.getElementById("canvas");
+        const context = canvas.getContext("2d");
+        const capturedInput = document.getElementById("capturedImage");
+        const preview = document.getElementById("preview");
+        const messageBox = document.getElementById("messageBox");
+
+        // Function to show custom messages (consistent across pages)
+        function showMessage(message, type = 'info', duration = 3000) {
+            let iconClass = '';
+            if (type === 'success') {
+                iconClass = 'icon-success fas fa-check-circle';
+            } else if (type === 'error') {
+                iconClass = 'icon-error fas fa-times-circle';
+            } else if (type === 'warning') {
+                iconClass = 'icon-warning fas fa-exclamation-triangle';
+            } else {
+                iconClass = 'icon-info fas fa-info-circle';
+            }
+            
+            messageBox.innerHTML = `<i class="${iconClass}"></i><span>${message}</span>`;
+            messageBox.className = 'show'; // Add 'show' class to fade in
+
+            setTimeout(() => {
+                messageBox.className = ''; // Remove 'show' class to fade out
+            }, duration);
+        }
+
+        // Handle Flask flashed messages (consistent across pages)
+        document.addEventListener('DOMContentLoaded', () => {
+            const flashMessages = document.querySelectorAll('.flash-msg');
+            if (flashMessages.length > 0) {
+                flashMessages.forEach(msg => {
+                    let type = 'info';
+                    if (msg.classList.contains('bg-red-600')) {
+                        type = 'error';
+                    } else if (msg.classList.contains('bg-green-600')) {
+                        type = 'success';
+                    } else if (msg.classList.contains('bg-blue-600')) {
+                        type = 'info';
+                    } else if (msg.classList.contains('bg-amber-600')) { // Assuming orange/amber for warning
+                        type = 'warning';
+                    }
+                    showMessage(msg.innerText, type, 5000); // Display flash messages for longer
+                    msg.style.display = 'none'; // Hide the original flash message div
+                });
+            }
+        });
+
+
+        // Request camera access
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then((stream) => {
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    // Set canvas dimensions to match video stream
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                };
+            })
+            .catch((err) => {
+                console.error("Webcam access error:", err);
+                showMessage("❌ Webcam access denied or not supported. Please allow camera access.", 'error', 10000);
+            });
+
+        function captureImage() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                // Ensure canvas matches video dimensions dynamically
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // Using image/jpeg for smaller size and widely supported format
+                // Quality 0.8 is a good balance between size and quality
+                const dataURL = canvas.toDataURL("image/jpeg", 0.8);
+                capturedInput.value = dataURL;
+                preview.src = dataURL;
+                preview.classList.remove("hidden"); // Show the preview image
+
+                showMessage("✅ Image captured. Click 'Register Student' to submit.", 'success');
+            } else {
+                showMessage("Waiting for video stream... Please ensure webcam is active.", 'warning');
+            }
+        }
+    </script>
+</body>
+</html>

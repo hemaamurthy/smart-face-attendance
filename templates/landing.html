@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome - Face Attendance System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-image: url('https://images.unsplash.com/photo-1506748687220-b119d02d6e60?auto=format&fit=crop&w=1920&q=80'); /* A welcoming, general background */
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            position: relative;
+        }
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7); /* Dark overlay */
+            backdrop-filter: blur(4px);
+            z-index: -1;
+        }
+        .text-shadow-lg {
+            text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.7);
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen text-white p-4">
+    <h1 class="text-4xl sm:text-5xl md:text-6xl font-bold mb-10 text-shadow-lg leading-tight text-center">
+        <i class="fas fa-fingerprint text-purple-400 mr-4"></i> Smart Face Attendance System
+    </h1>
+    
+    <div class="flex flex-col sm:flex-row gap-6 md:gap-8 mt-8 w-full max-w-lg justify-center">
+        <a href="{{ url_for('login') }}" class="flex-1 bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 
+                  px-8 py-5 rounded-xl shadow-lg transition-all duration-300 ease-in-out 
+                  flex items-center justify-center text-xl sm:text-2xl font-semibold transform hover:scale-105">
+            <i class="fas fa-user-graduate mr-4"></i> Student
+        </a>
+        <a href="{{ url_for('login') }}" class="flex-1 bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-75
+                  px-8 py-5 rounded-xl shadow-lg transition-all duration-300 ease-in-out 
+                  flex items-center justify-center text-xl sm:text-2xl font-semibold transform hover:scale-105">
+            <i class="fas fa-user-shield mr-4"></i> Admin
+        </a>
+    </div>
+
+    <p class="mt-8 text-sm text-gray-300 text-center">
+        New student? Please click 'Student' and then 'Register here' on the login page.
+    </p>
+</body>
+</html>

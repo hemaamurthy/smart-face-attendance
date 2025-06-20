@@ -1,0 +1,79 @@
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: url('/static/bg.jpg') no-repeat center center fixed;
+  background-size: cover;
+  color: #fff;
+}
+
+.container {
+  background: rgba(0, 0, 0, 0.7);
+  margin: 5% auto;
+  padding: 2rem;
+  max-width: 600px;
+  border-radius: 15px;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+  text-align: center;
+}
+
+h1 {
+  margin-bottom: 1rem;
+  color: #00e5ff;
+}
+
+input, button, select, a {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+  padding: 10px;
+  border: none;
+  border-radius: 5px;
+  font-size: 1rem;
+}
+
+input, select {
+  background: #f0f0f0;
+  color: #000;
+}
+
+button, a {
+  background: #00bcd4;
+  color: white;
+  text-decoration: none;
+  transition: background 0.3s ease;
+}
+
+button:hover, a:hover {
+  background: #007c91;
+}
+
+.flash {
+  margin: 1rem 0;
+  padding: 1rem;
+  background-color: #2196f3;
+  color: white;
+  border-radius: 5px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+table, th, td {
+  border: 1px solid #00e5ff;
+}
+
+th, td {
+  padding: 10px;
+  text-align: center;
+}
+
+.actions {
+  margin-top: 1rem;
+}
+
+.back {
+  background: #9e9e9e;
+}

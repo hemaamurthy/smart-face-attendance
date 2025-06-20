@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Attendance - Smart Face Attendance</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Custom styles to enhance Tailwind, keep font and background image */
+        body {
+            font-family: 'Inter', sans-serif; /* Using Inter font as per instructions */
+            background-image: url('https://images.unsplash.com/photo-1549924231-f129b911e442?auto=format&fit=crop&w=1920&q=80'); /* Using the same background as Mark Attendance */
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            position: relative;
+        }
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7); /* Darker overlay for content readability */
+            backdrop-filter: blur(4px);
+            z-index: -1; /* Place behind content */
+        }
+        /* Custom text shadow for headings */
+        .text-shadow-lg {
+            text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.7);
+        }
+        /* Make table cells break word for long paths if needed */
+        td {
+            word-break: break-all;
+        }
+        /* Style for the custom message box (consistent across pages) */
+        #messageBox {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #messageBox.show {
+            opacity: 1;
+        }
+        .icon-success { color: #10B981; } /* Tailwind green-500 */
+        .icon-error { color: #EF4444; }   /* Tailwind red-500 */
+        .icon-info { color: #3B82F6; }    /* Tailwind blue-500 */
+        .icon-warning { color: #F59E0B; } /* Tailwind amber-500 */
+    </style>
+</head>
+<body class="text-white p-4">
+    <!-- Navbar for easy navigation -->
+    <nav class="bg-gray-900 bg-opacity-80 p-4 rounded-lg shadow-lg flex justify-between items-center mb-8 max-w-7xl mx-auto">
+        <div class="flex items-center space-x-4">
+            <a href="{{ url_for('home') }}" class="text-white hover:text-blue-400 transition-colors duration-200 flex items-center">
+                <i class="fas fa-home mr-2"></i> Home
+            </a>
+            <span class="text-gray-500">|</span>
+            <span class="text-white font-semibold">My Attendance</span>
+        </div>
+        <a href="{{ url_for('logout') }}" class="text-red-400 hover:text-red-500 transition-colors duration-200 flex items-center">
+            <i class="fas fa-sign-out-alt mr-2"></i> Logout ({{ current_user.username }})
+        </a>
+    </nav>
+
+    <div class="dashboard-container bg-gray-800 bg-opacity-90 p-6 sm:p-8 rounded-xl shadow-2xl max-w-7xl mx-auto my-4">
+        <h1 class="text-3xl sm:text-4xl font-bold mb-6 text-center text-green-400 text-shadow-lg">
+            <i class="fas fa-user-circle mr-3"></i> My Attendance Records
+            {% if student_name %}<br><span class="text-xl text-gray-300">for {{ student_name }}</span>{% endif %}
+        </h1>
+
+        <!-- Custom message box for Flask flashes -->
+        <div id="messageBox"></div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages w-full mb-4">
+                {% for category, message in messages %}
+                    <p class="flash-msg text-sm p-2 rounded-lg mb-2 
+                       {% if category == 'error' %}bg-red-600{% elif category == 'success' %}bg-green-600{% elif category == 'info' %}bg-blue-600{% else %}bg-gray-600{% endif %}">
+                        {{ message }}
+                    </p>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% endwith %}
+
+        {% if records %}
+            <div class="overflow-x-auto rounded-lg shadow-lg">
+                <table class="min-w-full bg-gray-700 divide-y divide-gray-600">
+                    <thead class="bg-green-700">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider rounded-tl-lg">Date</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Time</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Section</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Latitude</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Longitude</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider rounded-tr-lg">Image Path</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-600">
+                        {% for record in records %}
+                            <tr class="hover:bg-gray-600 transition-colors duration-200">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">{{ record['date'] }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">{{ record['time'] }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">{{ record['section'] }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">{{ "%.4f"|format(record['latitude']) if record['latitude'] else 'N/A' }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">{{ "%.4f"|format(record['longitude']) if record['longitude'] else 'N/A' }}</td>
+                                <td class="px-6 py-4 text-sm text-gray-200">{{ record['image_path'] }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-center text-lg text-gray-400 py-10">No attendance records found for you yet.</p>
+        {% endif %}
+    </div>
+
+    <script>
+        const messageBox = document.getElementById("messageBox");
+
+        // Function to show custom messages (consistent across pages)
+        function showMessage(message, type = 'info', duration = 3000) {
+            let iconClass = '';
+            if (type === 'success') {
+                iconClass = 'icon-success fas fa-check-circle';
+            } else if (type === 'error') {
+                iconClass = 'icon-error fas fa-times-circle';
+            } else if (type === 'warning') {
+                iconClass = 'icon-warning fas fa-exclamation-triangle';
+            } else {
+                iconClass = 'icon-info fas fa-info-circle';
+            }
+            
+            messageBox.innerHTML = `<i class="${iconClass}"></i><span>${message}</span>`;
+            messageBox.className = 'show'; // Add 'show' class to fade in
+
+            setTimeout(() => {
+                messageBox.className = ''; // Remove 'show' class to fade out
+            }, duration);
+        }
+
+        // Handle Flask flashed messages (consistent across pages)
+        document.addEventListener('DOMContentLoaded', () => {
+            const flashMessages = document.querySelectorAll('.flash-msg');
+            if (flashMessages.length > 0) {
+                flashMessages.forEach(msg => {
+                    let type = 'info';
+                    if (msg.classList.contains('bg-red-600')) {
+                        type = 'error';
+                    } else if (msg.classList.contains('bg-green-600')) {
+                        type = 'success';
+                    } else if (msg.classList.contains('bg-blue-600')) {
+                        type = 'info';
+                    } else if (msg.classList.contains('bg-amber-600')) { // Assuming orange/amber for warning
+                        type = 'warning';
+                    }
+                    showMessage(msg.innerText, type, 5000); // Display flash messages for longer
+                    msg.style.display = 'none'; // Hide the original flash message div
+                });
+            }
+        });
+    </script>
+</body>
+</html>
