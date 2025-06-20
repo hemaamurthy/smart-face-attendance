@@ -8,11 +8,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <!-- Face-API.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
         /* Custom styles to enhance Tailwind, keep font and background image */
         body {
             font-family: 'Inter', sans-serif; /* Using Inter font as per instructions */
-            background-image: url('https://images.unsplash.com/photo-1549924231-f129b911e442?auto=format&fit=crop&w=1920&q=80'); /* Adjusted for potential better quality */
+            background-image: url('https://images.unsplash.com/photo-1549924231-f129b911e442?auto=format&fit=crop&w=1920&q=80'); /* Using the same background as Mark Attendance */
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
@@ -58,6 +60,13 @@
         .icon-error { color: #EF4444; }   /* Tailwind red-500 */
         .icon-info { color: #3B82F6; }    /* Tailwind blue-500 */
         .icon-warning { color: #F59E0B; } /* Tailwind amber-500 */
+
+        /* Canvas for drawing detections (optional, for visual feedback) */
+        #overlayCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen text-white p-4">
@@ -84,11 +93,27 @@
         {% endwith %}
 
         <form id="attendanceForm" method="POST" action="{{ url_for('mark_attendance') }}" class="w-full">
-            <video id="videoElement" autoplay
-                   class="w-full max-w-md h-auto rounded-lg shadow-md border-2 border-gray-700 mx-auto block mb-4"></video>
+            <p class="text-sm text-gray-300 mb-4">
+                <i class="fas fa-info-circle mr-2"></i> When marking attendance:
+            </p>
+            <ul class="text-left text-sm text-gray-400 list-disc list-inside mb-4 mx-auto max-w-sm">
+                <li>Remove spectacles/sunglasses.</li>
+                <li>Be in a well-lit area.</li>
+                <li>Ensure your face is clearly visible.</li>
+                <li>Point your eyes directly at the camera.</li>
+                <li>Maintain a neutral expression.</li>
+            </ul>
+
+            <div style="position: relative; width: 100%; max-width: 600px; margin: 0 auto 1rem;">
+                <video id="videoElement" autoplay muted
+                    class="w-full h-auto rounded-lg shadow-md border-2 border-gray-700 block"></video>
+                <canvas id="overlayCanvas" class="absolute top-0 left-0 w-full h-full"></canvas>
+            </div>
+            
             <canvas id="canvas" style="display: none;"></canvas>
             
             <input type="hidden" name="captured_image" id="capturedImage" />
+            <input type="hidden" name="face_descriptor" id="faceDescriptor" /> {# NEW: Hidden input for face descriptor #}
             <input type="hidden" name="latitude" id="latitudeInput" />
             <input type="hidden" name="longitude" id="longitudeInput" />
             
@@ -96,10 +121,9 @@
                 <button type="button" class="btn bg-orange-600 hover:bg-orange-700 focus:ring-orange-500 
                                            px-6 py-3 rounded-lg shadow-md transition-all duration-200 
                                            flex items-center justify-center text-lg font-semibold" 
-                        onclick="captureImageAndLocation()">
+                        onclick="captureFaceAndLocation()">
                     <i class="fas fa-camera mr-2"></i> Capture & Mark
                 </button>
-                {# Submit button will be handled by JavaScript after capture/location #}
             </div>
             <img id="preview" 
                  class="w-full max-w-md h-auto rounded-lg shadow-md border-2 border-gray-700 mx-auto block mt-4 hidden" />
@@ -114,11 +138,13 @@
         const canvas = document.getElementById("canvas");
         const context = canvas.getContext("2d");
         const capturedInput = document.getElementById("capturedImage");
+        const faceDescriptorInput = document.getElementById("faceDescriptor"); // NEW
         const latitudeInput = document.getElementById("latitudeInput");
         const longitudeInput = document.getElementById("longitudeInput");
         const preview = document.getElementById("preview");
         const messageBox = document.getElementById("messageBox");
-        const attendanceForm = document.getElementById("attendanceForm"); // Get the form element
+        const overlayCanvas = document.getElementById("overlayCanvas"); // NEW
+        const displaySize = { width: video.width, height: video.height }; // Will be updated on video load
 
         // Function to show custom messages (consistent across pages)
         function showMessage(message, type = 'info', duration = 3000) {
@@ -162,15 +188,34 @@
             }
         });
 
+        // Load face-api.js models
+        async function loadModels() {
+            showMessage("⏳ Loading face models...", 'info', 0); // Show indefinitely
+            const MODELS_URL = '/static/models'; // Models need to be served from this path
+            try {
+                await Promise.all([
+                    faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URL),
+                    faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_URL),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(MODELS_URL)
+                ]);
+                showMessage("✅ Face models loaded!", 'success');
+            } catch (error) {
+                console.error("Error loading models:", error);
+                showMessage("❌ Error loading face models. Please refresh.", 'error', 10000);
+            }
+        }
 
-        // Request camera access
+        // Request camera access and start model loading
         navigator.mediaDevices.getUserMedia({ video: true })
             .then((stream) => {
                 video.srcObject = stream;
                 video.onloadedmetadata = () => {
-                    // Set canvas dimensions to match video stream
+                    displaySize.width = video.videoWidth;
+                    displaySize.height = video.videoHeight;
+                    faceapi.matchDimensions(overlayCanvas, displaySize);
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
+                    loadModels(); // Start loading models after video is ready
                 };
             })
             .catch((err) => {
@@ -178,21 +223,42 @@
                 showMessage("❌ Webcam access denied or not supported. Please allow camera access.", 'error', 10000);
             });
 
-        function captureImageAndLocation() {
+        // Function to capture image, detect face, get location, and submit
+        async function captureFaceAndLocation() {
             if (video.readyState !== video.HAVE_ENOUGH_DATA) {
                 showMessage("Waiting for video stream... Please ensure webcam is active.", 'warning');
                 return;
             }
 
-            // Step 1: Capture Image
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            showMessage("Detecting face and getting location...", 'info', 0);
 
-            const dataURL = canvas.toDataURL("image/jpeg", 0.8); // Consistent quality
-            capturedInput.value = dataURL;
-            preview.src = dataURL;
-            preview.classList.remove("hidden"); // Show the preview image
+            // Step 1: Detect Face and Get Descriptor
+            const tempCanvas = faceapi.createCanvasFromMedia(video);
+            const detections = await faceapi.detectSingleFace(tempCanvas, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+
+            if (!detections) {
+                showMessage("❌ No face detected. Please ensure your face is visible and well-lit.", 'error');
+                capturedInput.value = "";
+                faceDescriptorInput.value = "";
+                overlayCanvas.getContext('2d').clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                return;
+            }
+
+            // Draw detection on overlay canvas for user feedback
+            const resizedDetections = faceapi.resizeResults(detections, displaySize);
+            overlayCanvas.getContext('2d').clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            faceapi.draw.drawDetections(overlayCanvas, resizedDetections);
+            faceapi.draw.drawFaceLandmarks(overlayCanvas, resizedDetections);
+            
+            // Get image data from the main canvas (without overlay drawings)
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageDataURL = canvas.toDataURL("image/jpeg", 0.8);
+
+            capturedInput.value = imageDataURL;
+            faceDescriptorInput.value = JSON.stringify(Array.from(detections.descriptor)); // Convert Float32Array to regular Array, then JSON stringify
+            
+            preview.src = imageDataURL;
+            preview.classList.remove("hidden");
 
             showMessage("📍 Getting your location...", 'info', 5000);
 
@@ -202,8 +268,8 @@
                     (position) => {
                         latitudeInput.value = position.coords.latitude;
                         longitudeInput.value = position.coords.longitude;
-                        showMessage("✅ Image captured and location acquired! Submitting attendance...", 'success');
-                        attendanceForm.submit(); // Submit the form once image and location are ready
+                        showMessage("✅ Face captured and location acquired! Submitting attendance...", 'success', 3000);
+                        document.getElementById("attendanceForm").submit(); // Submit the form
                     },
                     (error) => {
                         console.error("Geolocation error:", error);
@@ -216,13 +282,11 @@
                             errorMessage = "❌ The request to get user location timed out.";
                         }
                         showMessage(errorMessage, 'error', 10000);
-                        // Do not submit the form if location fails
                     },
                     { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // Options for location
                 );
             } else {
                 showMessage("❌ Geolocation is not supported by your browser. Cannot mark attendance.", 'error', 10000);
-                // Do not submit the form if geolocation is not supported
             }
         }
     </script>
