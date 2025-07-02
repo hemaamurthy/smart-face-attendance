@@ -3,26 +3,28 @@ import os, sqlite3, datetime, base64
 import numpy as np
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from whitenoise import WhiteNoise # NEW: Import WhiteNoise
+from whitenoise import WhiteNoise
 
 # --- REMOVED HEAVY DEPENDENCIES ---
 # Removed: face_recognition, cv2, dlib from imports as they won't run on free tier
 
-app = Flask(__name__)
-app.secret_key = os.urandom(24)  # Secure random secret key for session management
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # Upload limit to 5 MB
+# --- EXPLICITLY DEFINE STATIC FOLDER ---
+# This tells Flask exactly where to find static files.
+# It should be the 'static' folder relative to your app.py.
+app = Flask(__name__, static_folder='static') # NEW: Explicit static_folder
 
-# --- NEW: WhiteNoise Configuration for Static Files ---
-# This tells WhiteNoise where to find your static files.
-# It will serve files from the 'static' directory.
-app.wsgi_app = WhiteNoise(app.wsgi_app, root=os.path.join(app.root_path, 'static'))
-# Optional: Add specific static files to serve (e.g., models)
-# app.wsgi_app.add_files('/path/to/your/static/models', prefix='static/models/') # Not strictly needed if root is 'static'
+app.secret_key = os.urandom(24)
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
+
+# --- WhiteNoise Configuration for Static Files ---
+# WhiteNoise will now serve files from the explicitly defined static_folder.
+app.wsgi_app = WhiteNoise(app.wsgi_app, root=app.static_folder) # Changed root to app.static_folder
+print(f"WhiteNoise serving static files from: {app.static_folder}") # DEBUG PRINT
 
 # --- Flask-Login Setup ---
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login' # Redirect unauthenticated users to the login page
+login_manager.login_view = 'login'
 
 # User model for Flask-Login
 class User(UserMixin):
@@ -32,11 +34,11 @@ class User(UserMixin):
         self.password_hash = password_hash
         self.role = role
 
-    def get_id(self):
-        return str(self.id)
+    def get_id(self_):
+        return str(self_.id)
     
-    def is_admin(self):
-        return self.role == 'admin'
+    def is_admin(self_):
+        return self_.role == 'admin'
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -52,12 +54,11 @@ DATABASE = 'attendance.db'
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row # Allows accessing columns by name
+    conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
     conn = get_db_connection()
-    # Create users table
     conn.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,7 +67,6 @@ def init_db():
             role TEXT NOT NULL
         )
     ''')
-    # Create students table (linked to users and storing student-specific data)
     conn.execute('''
         CREATE TABLE IF NOT EXISTS students (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,11 +75,10 @@ def init_db():
             roll_number TEXT UNIQUE NOT NULL,
             section TEXT NOT NULL,
             date_of_birth TEXT NOT NULL,
-            face_descriptor TEXT, -- NEW: Store face descriptor as a JSON string
+            face_descriptor TEXT,
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     ''')
-    # Create attendance table
     conn.execute('''
         CREATE TABLE IF NOT EXISTS attendance (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,11 +92,10 @@ def init_db():
         )
     ''')
 
-    # Add a default admin user if not exists
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
     if cursor.fetchone()[0] == 0:
-        admin_password = generate_password_hash("adminpass") # CHANGE THIS PASSWORD FOR DEPLOYMENT!
+        admin_password = generate_password_hash("adminpass")
         conn.execute("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
                      ("admin", admin_password, "admin"))
         print("Default admin user created: username='admin', password='adminpass'")
@@ -105,15 +103,12 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Ensure directories exist (we might not save raw registered faces locally anymore)
-if not os.path.exists('face_data/attendance_logs'): # Only need logs, registered_face not needed for server-side storing
+if not os.path.exists('face_data/attendance_logs'):
     os.makedirs('face_data/attendance_logs')
 
-# Initialize the database on app startup
 with app.app_context():
     init_db()
 
-# --- Helper to insert attendance ---
 def insert_attendance_record(student_id, date, time, image_path, latitude, longitude):
     conn = get_db_connection()
     conn.execute("INSERT INTO attendance (student_id, date, time, image_path, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?)",
@@ -121,26 +116,18 @@ def insert_attendance_record(student_id, date, time, image_path, latitude, longi
     conn.commit()
     conn.close()
 
-# --- Face Matching Helper (Python side, using numpy) ---
-# This will replace face_recognition.compare_faces
 def compare_face_descriptors(known_descriptor_str, unknown_descriptor_array, tolerance=0.6):
-    """
-    Compares a known face descriptor (as a JSON string from DB) with a
-    newly provided descriptor (NumPy array from frontend).
-    Returns True if they match within tolerance, False otherwise.
-    """
     if not known_descriptor_str:
-        return False # No known face descriptor to compare against
+        return False
 
     try:
-        known_descriptor_array = np.array(eval(known_descriptor_str)) # eval() to convert string back to list/array
+        known_descriptor_array = np.array(eval(known_descriptor_str))
         distance = np.linalg.norm(known_descriptor_array - unknown_descriptor_array)
         return distance < tolerance
     except Exception as e:
         print(f"Error comparing descriptors: {e}")
         return False
 
-# --- Routes ---
 @app.route('/')
 def home():
     if not current_user.is_authenticated:
@@ -207,7 +194,7 @@ def register():
         section = request.form['section'].strip()
         date_of_birth = request.form['date_of_birth'].strip()
         image_data_url = request.form['captured_image']
-        face_descriptor_str = request.form.get('face_descriptor') # NEW: Get face descriptor from frontend
+        face_descriptor_str = request.form.get('face_descriptor')
 
         if not name or not roll_number or not section or not date_of_birth or not face_descriptor_str:
             flash("All fields (Name, Roll Number, Section, Date of Birth) and face capture are required.", "error")
@@ -226,13 +213,11 @@ def register():
         conn.close()
 
         try:
-            # Parse the face descriptor from string to list/NumPy array
-            face_descriptor = eval(face_descriptor_str) # Using eval for simplicity, safer would be json.loads
+            face_descriptor = eval(face_descriptor_str)
             if not isinstance(face_descriptor, list) or len(face_descriptor) == 0:
                 flash("❌ Invalid face descriptor received. Please ensure a face is detected.", "error")
                 return redirect(url_for('register'))
 
-            # --- Registration Logic: Create User and Student ---
             conn = get_db_connection()
             student_username = roll_number
             student_password_hash = generate_password_hash(date_of_birth)
@@ -242,9 +227,8 @@ def register():
                            (student_username, student_password_hash, "student"))
             student_user_id = cursor.lastrowid
 
-            # Save student details, linked to the new user ID, including DOB and face descriptor
             conn.execute("INSERT INTO students (user_id, name, roll_number, section, date_of_birth, face_descriptor) VALUES (?, ?, ?, ?, ?, ?)",
-                         (student_user_id, name, roll_number, section, date_of_birth, str(face_descriptor))) # Store as string
+                         (student_user_id, name, roll_number, section, date_of_birth, str(face_descriptor)))
             conn.commit()
             conn.close()
 
@@ -276,17 +260,17 @@ def mark_attendance():
     student_id = student_data['id']
     student_name = student_data['name']
     student_roll_number = student_data['roll_number']
-    known_face_descriptor_str = student_data['face_descriptor'] # Get the stored descriptor
+    known_face_descriptor_str = student_data['face_descriptor']
 
     if not known_face_descriptor_str:
         flash("🚫 No face registered for your account. Please register your face first.", "error")
-        return redirect(url_for('home')) # Or redirect to register page
+        return redirect(url_for('home'))
 
     if request.method == 'POST':
         image_data_url = request.form.get('captured_image')
         latitude = request.form.get('latitude')
         longitude = request.form.get('longitude')
-        captured_face_descriptor_str = request.form.get('face_descriptor') # NEW: Get captured descriptor
+        captured_face_descriptor_str = request.form.get('face_descriptor')
 
         try:
             latitude = float(latitude) if latitude else None
@@ -303,7 +287,6 @@ def mark_attendance():
             flash("❌ No face detected or descriptor captured. Please ensure your face is visible.", "error")
             return redirect(url_for('mark_attendance'))
 
-        # Check if attendance is already marked for today for this student
         now = datetime.datetime.now()
         today_date = now.strftime("%Y-%m-%d")
         conn = get_db_connection()
@@ -316,20 +299,16 @@ def mark_attendance():
             return redirect(url_for('my_attendance'))
 
         try:
-            # Convert captured descriptor string to NumPy array
             captured_descriptor_array = np.array(eval(captured_face_descriptor_str))
             
-            # Perform face comparison on the server side using numpy
-            # (Alternatively, this comparison could be done entirely in JS on client)
             is_match = compare_face_descriptors(known_face_descriptor_str, captured_descriptor_array)
 
             if is_match:
                 current_time = now.strftime("%H:%M:%S")
                 filename = f"attendance_{student_roll_number}_{today_date}_{now.strftime('%H%M%S')}.jpg"
                 
-                # Save the raw image for attendance logs (optional, but good for visual verification)
                 attendance_log_dir = 'face_data/attendance_logs'
-                if not os.path.exists(attendance_log_dir): # Ensure log directory exists
+                if not os.path.exists(attendance_log_dir):
                     os.makedirs(attendance_log_dir)
 
                 img_bytes = base64.b64decode(image_data_url.split(",")[1])
@@ -350,8 +329,6 @@ def mark_attendance():
 
     return render_template("mark_attendance.html")
 
-
-# --- Admin Dashboard ---
 @app.route('/admin_dashboard')
 @login_required
 def admin_dashboard():
@@ -361,10 +338,8 @@ def admin_dashboard():
 
     conn = get_db_connection()
     
-    # Fetch all students
     students = conn.execute('SELECT id, name, roll_number, section, date_of_birth FROM students ORDER BY name').fetchall()
 
-    # Fetch all attendance records with student details
     query = """
         SELECT
             a.id,
@@ -388,8 +363,6 @@ def admin_dashboard():
     
     return render_template('admin_dashboard.html', students_and_records={'students': students, 'attendance_records': attendance_records})
 
-
-# --- Delete Student Route ---
 @app.route('/delete_student/<int:student_id>', methods=['POST'])
 @login_required
 def delete_student(student_id):
@@ -398,12 +371,7 @@ def delete_student(student_id):
 
     conn = get_db_connection()
     try:
-        # Get the user_id associated with the student_id
         user_id = conn.execute('SELECT user_id FROM students WHERE id = ?', (student_id,)).fetchone()
-        
-        # NOTE: If you decide to save raw registered face images on the server for admin review,
-        # you would need to fetch the image path here (e.g., from a new column in students table)
-        # and delete it from the file system. For now, we only store the descriptor.
         
         if user_id:
             user_id = user_id['user_id']
@@ -425,8 +393,6 @@ def delete_student(student_id):
     finally:
         conn.close()
 
-
-# --- Delete Attendance Record Route ---
 @app.route('/delete_attendance/<int:record_id>', methods=['POST'])
 @login_required
 def delete_attendance(record_id):
