@@ -3,7 +3,7 @@ import os, sqlite3, datetime, base64
 import numpy as np
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from whitenoise import WhiteNoise
+# REMOVED: from whitenoise import WhiteNoise
 
 # --- REMOVED HEAVY DEPENDENCIES ---
 # Removed: face_recognition, cv2, dlib from imports as they won't run on free tier
@@ -11,15 +11,14 @@ from whitenoise import WhiteNoise
 # --- EXPLICITLY DEFINE STATIC FOLDER ---
 # This tells Flask exactly where to find static files.
 # It should be the 'static' folder relative to your app.py.
-app = Flask(__name__, static_folder='static') # NEW: Explicit static_folder
+app = Flask(__name__, static_folder='static') # Keep this line
 
 app.secret_key = os.urandom(24)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 
-# --- WhiteNoise Configuration for Static Files ---
-# WhiteNoise will now serve files from the explicitly defined static_folder.
-app.wsgi_app = WhiteNoise(app.wsgi_app, root=app.static_folder) # Changed root to app.static_folder
-print(f"WhiteNoise serving static files from: {app.static_folder}") # DEBUG PRINT
+# REMOVED: WhiteNoise Configuration for Static Files
+# app.wsgi_app = WhiteNoise(app.wsgi_app, root=app.static_folder) # REMOVED
+# print(f"WhiteNoise serving static files from: {app.static_folder}") # REMOVED
 
 # --- Flask-Login Setup ---
 login_manager = LoginManager()

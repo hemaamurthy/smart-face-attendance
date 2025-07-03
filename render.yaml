@@ -1,0 +1,21 @@
+# render.yaml
+services:
+  - type: web
+    name: smart-face-attendance
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m gunicorn app:app
+    plan: free
+    # Optional: Add environment variables here if needed, e.g.,
+    # envVars:
+    #   - key: FLASK_ENV
+    #     value: production
+
+  - type: static_site # NEW: Define a static site service
+    name: smart-face-attendance-static # A unique name for your static service
+    buildCommand: echo "No build needed for static files"
+    staticPublishPath: ./static # Points to your static folder
+    # Optional: Add environment variables if needed for static site (unlikely)
+    # envVars:
+    #   - key: CACHE_CONTROL
+    #     value: public, max-age=31536000
