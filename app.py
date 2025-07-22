@@ -3,23 +3,35 @@ import os, sqlite3, datetime, base64
 import numpy as np
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from whitenoise import WhiteNoise # Keep this import
+from whitenoise import WhiteNoise
 
-# --- REMOVED HEAVY DEPENDENCIES ---
-# Removed: face_recognition, cv2, dlib from imports as they won't run on free tier
+# --- AGGRESSIVE DEBUG PRINT (VERY FIRST LINE OF APP LOGIC) ---
+print("--- app.py is starting execution ---")
+print(f"Current working directory: {os.getcwd()}")
+print(f"App root path: {os.path.abspath(os.path.dirname(__file__))}")
 
 # --- Flask App Initialization ---
 # Explicitly tell Flask where its static folder is
-app = Flask(__name__, static_folder='static', static_url_path='/static') # Added static_url_path
+# Use os.path.abspath to ensure the static folder path is absolute and correct
+STATIC_FOLDER_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static')
+app = Flask(__name__, static_folder=STATIC_FOLDER_PATH) # Use absolute path here
 
 app.secret_key = os.urandom(24)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 
-# --- WhiteNoise Configuration (Corrected) ---
-# WhiteNoise will serve files from the static_folder defined by Flask.
+# --- WhiteNoise Configuration (Most Robust with Direct CORS) ---
+# WhiteNoise will now handle the /static/ prefix entirely.
 # Ensure WhiteNoise is added *after* Flask app initialization.
-app.wsgi_app = WhiteNoise(app.wsgi_app, root=app.static_folder, prefix=app.static_url_path) # Added prefix
-print(f"WhiteNoise serving static files from: {app.static_folder} with prefix {app.static_url_path}") # DEBUG PRINT
+# Pass a dictionary of headers to add to static files
+app.wsgi_app = WhiteNoise(
+    app.wsgi_app,
+    root=app.static_folder,
+    prefix='/static/',
+    # Directly add Access-Control-Allow-Origin header for all static files
+    # In production, consider restricting '*' to your specific Render domain.
+    headers={'Access-Control-Allow-Origin': '*'} 
+)
+print(f"WhiteNoise configured to serve from: {app.static_folder} with prefix /static/ and direct CORS headers.") # DEBUG PRINT
 
 # --- Flask-Login Setup ---
 login_manager = LoginManager()
@@ -127,6 +139,14 @@ def compare_face_descriptors(known_descriptor_str, unknown_descriptor_array, tol
     except Exception as e:
         print(f"Error comparing descriptors: {e}")
         return False
+
+# REMOVED: The @app.after_request CORS header addition
+# @app.after_request
+# def add_cors_headers(response):
+#     response.headers['Access-Control-Allow-Origin'] = app.config['CORS_ALLOW_ORIGIN']
+#     response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+#     response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
+#     return response
 
 @app.route('/')
 def home():
