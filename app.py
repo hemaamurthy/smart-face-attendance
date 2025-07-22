@@ -19,19 +19,16 @@ app = Flask(__name__, static_folder=STATIC_FOLDER_PATH) # Use absolute path here
 app.secret_key = os.urandom(24)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 
-# --- WhiteNoise Configuration (Most Robust with Direct CORS) ---
+# --- WhiteNoise Configuration (Most Robust - WITHOUT 'headers' argument) ---
 # WhiteNoise will now handle the /static/ prefix entirely.
 # Ensure WhiteNoise is added *after* Flask app initialization.
-# Pass a dictionary of headers to add to static files
 app.wsgi_app = WhiteNoise(
     app.wsgi_app,
     root=app.static_folder,
-    prefix='/static/',
-    # Directly add Access-Control-Allow-Origin header for all static files
-    # In production, consider restricting '*' to your specific Render domain.
-    headers={'Access-Control-Allow-Origin': '*'} 
+    prefix='/static/'
+    # Removed: headers={'Access-Control-Allow-Origin': '*'}
 )
-print(f"WhiteNoise configured to serve from: {app.static_folder} with prefix /static/ and direct CORS headers.") # DEBUG PRINT
+print(f"WhiteNoise configured to serve from: {app.static_folder} with prefix /static/ (CORS via after_request).") # DEBUG PRINT
 
 # --- Flask-Login Setup ---
 login_manager = LoginManager()
@@ -140,13 +137,14 @@ def compare_face_descriptors(known_descriptor_str, unknown_descriptor_array, tol
         print(f"Error comparing descriptors: {e}")
         return False
 
-# REMOVED: The @app.after_request CORS header addition
-# @app.after_request
-# def add_cors_headers(response):
-#     response.headers['Access-Control-Allow-Origin'] = app.config['CORS_ALLOW_ORIGIN']
-#     response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-#     response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
-#     return response
+# --- CORS Header for all responses (important for CDN-loaded JS to access your static files) ---
+# Re-added this as WhiteNoise 'headers' argument is not supported
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*' # Allow all origins for now
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
+    return response
 
 @app.route('/')
 def home():
